@@ -4,12 +4,23 @@ const axios = require("axios");
 const CWA_API_BASE_URL = "https://opendata.cwa.gov.tw/api";
 const CWA_API_KEY = process.env.CWA_API_KEY;
 
+// === 修改點 1: 建立城市代碼與中文名稱的對照表 ===
+// key 是前端網址傳來的代號，value 是 CWA API 需要的中文名稱
+const CITY_MAP = {
+  kaohsiung: "高雄市",
+  taipei: "臺北市",
+  tainan: "臺南市",
+  yilan: "宜蘭縣",
+  taichung: "臺中市", // 順便把台中也加進來
+};
+
 /**
- * 取得高雄天氣預報
- * CWA 氣象資料開放平臺 API
- * 使用「一般天氣預報-今明 36 小時天氣預報」資料集
+ * 取得指定城市的天氣預報
+ * @route GET /api/weather/:cityId
+ * @param req.params.cityId - 城市代碼 (例如: kaohsiung, taipei)
  */
-const getKaohsiungWeather = async (req, res) => {
+// === 修改點 2: 將函式名稱改為通用的 getWeatherByCity ===
+const getWeatherByCity = async (req, res) => {
   try {
     // 檢查是否有設定 API Key
     if (!CWA_API_KEY) {
@@ -19,36 +30,53 @@ const getKaohsiungWeather = async (req, res) => {
       });
     }
 
+    // === 修改點 3: 接收路由參數並查找對應的中文城市名稱 ===
+    // 假設您的路由設定是 router.get('/:cityId', weatherController.getWeatherByCity);
+    const cityId = req.params.cityId;
+    const chineseLocationName = CITY_MAP[cityId];
+
+    // 如果找不到對應的城市，回傳 400 錯誤
+    if (!chineseLocationName) {
+      return res.status(400).json({
+        success: false,
+        error: "無效的請求",
+        message: `不支援或錯誤的城市代碼: ${cityId}。請使用: ${Object.keys(
+          CITY_MAP
+        ).join(", ")}`,
+      });
+    }
+
     // 呼叫 CWA API - 一般天氣預報（36小時）
-    // API 文件: https://opendata.cwa.gov.tw/dist/opendata-swagger.html
     const response = await axios.get(
       `${CWA_API_BASE_URL}/v1/rest/datastore/F-C0032-001`,
       {
         params: {
           Authorization: CWA_API_KEY,
-          locationName: "臺中市",
+          // === 修改點 4: 使用動態取得的中文城市名稱 ===
+          locationName: chineseLocationName,
         },
       }
     );
 
-    // 取得高雄市的天氣資料
+    // 取得城市的天氣資料
     const locationData = response.data.records.location[0];
 
     if (!locationData) {
       return res.status(404).json({
+        success: false,
         error: "查無資料",
-        message: "無法取得高雄市天氣資料",
+        // === 修改點 5: 錯誤訊息也使用動態名稱 ===
+        message: `無法取得 ${chineseLocationName} 的天氣資料`,
       });
     }
 
-    // 整理天氣資料
+    // --- 以下資料整理邏輯保持不變 ---
     const weatherData = {
       city: locationData.locationName,
       updateTime: response.data.records.datasetDescription,
       forecasts: [],
     };
 
-    // 解析天氣要素
     const weatherElements = locationData.weatherElement;
     const timeCount = weatherElements[0].time.length;
 
@@ -99,16 +127,15 @@ const getKaohsiungWeather = async (req, res) => {
     console.error("取得天氣資料失敗:", error.message);
 
     if (error.response) {
-      // API 回應錯誤
       return res.status(error.response.status).json({
+        success: false,
         error: "CWA API 錯誤",
         message: error.response.data.message || "無法取得天氣資料",
-        details: error.response.data,
       });
     }
 
-    // 其他錯誤
     res.status(500).json({
+      success: false,
       error: "伺服器錯誤",
       message: "無法取得天氣資料，請稍後再試",
     });
@@ -116,5 +143,6 @@ const getKaohsiungWeather = async (req, res) => {
 };
 
 module.exports = {
-  getKaohsiungWeather,
+  // === 修改點 6: 匯出新的函式名稱 ===
+  getWeatherByCity,
 };
