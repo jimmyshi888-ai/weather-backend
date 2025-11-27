@@ -14,6 +14,10 @@ const CITY_MAP = {
   taichung: "臺中市",
   newtaipei: "新北市",
   taoyuan: "桃園市",
+  hsinchu: "新竹市",
+  hsinchucounty: "新竹縣",
+  miaoli: "苗栗縣",
+  changhua: "彰化縣",
 };
 
 /**
